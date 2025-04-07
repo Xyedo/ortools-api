@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package routing;
+
+service OrtoolsService {
+  rpc Routing (RoutingRequest) returns (RoutingResponse);
+}
+
+message units {
+  repeated int64 value = 1; // []int
+}
+
+message startEndVehicle {
+  // follows the number of vehicles as the length of the array
+  repeated int32 start = 1;  
+  // follows the number of vehicles as the length of the array
+  repeated int32 end = 2;   
+}
+
+message RoutingRequestWithCapacity {
+  // follows the number of vehicles as the length of the array
+  repeated int64 vehicleCapacity = 1; 
+  // follows the number of locations as the length of the array
+  repeated int64 demands = 2;
+}
+
+
+message pair {
+  int64 a = 1; // int
+  int64 b = 2; // int
+}
+
+message RoutingRequestWithPickupAndDeliveries {
+  repeated pair pickupDrops = 1; // []pair -> pickup and drop
+}
+
+
+message RoutingRequestWithTimeWindows {
+  repeated pair timeWindows = 2; // []pair -> time windows
+}
+
+message RoutingRequestWithServiceTime {
+  // follows the number of locations as the length of the array
+  repeated int64 serviceTime = 1; // []int
+}
+
+
+
+message RoutingRequest {
+  repeated units durationMatrix = 1; // [][]int
+  oneof RoutingMode { 
+    // if no starting and ending point is given either with the index -1 or startEndVehicle with each index is -1
+    startEndVehicle startEnd = 2; 
+    int32 depot = 3;
+  } 
+  int32 numVehicles = 4; // int
+  optional int64 APITimeLimit = 5; // in seconds
+  optional RoutingRequestWithCapacity withCapacity = 6; // with capacity
+  optional RoutingRequestWithPickupAndDeliveries withPickupAndDeliveries = 7; // with pickup and deliveries
+  optional RoutingRequestWithTimeWindows withTimeWindows = 8; // with time windows
+  optional RoutingRequestWithServiceTime withServiceTime = 9; // with service time
+}
+
+
+message vehicleRoute {
+  repeated int32 route = 1; // []int
+  int32 totalDuration = 2; // int
+}
+
+message RoutingResponse {
+  string status = 1; // "OK" or "NO_SOLUTION"
+  repeated vehicleRoute routes = 2;
+}
