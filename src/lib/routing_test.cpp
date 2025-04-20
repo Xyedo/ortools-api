@@ -3,7 +3,9 @@
 #include <fmt/ranges.h>
 #include <gtest/gtest.h>
 
-const vector<vector<int64_t>> g_duration_matrix = {
+#include <vector>
+
+const std::vector<std::vector<int64_t>> g_duration_matrix = {
     {0, 2451, 713, 1018, 1631, 1374, 2408, 213, 2571, 875, 1420, 2145, 1972},
     {2451, 0, 1745, 1524, 831, 1240, 959, 2596, 403, 1589, 1374, 357, 579},
     {713, 1745, 0, 355, 920, 803, 1737, 851, 1858, 262, 940, 1453, 1260},
@@ -20,139 +22,231 @@ const vector<vector<int64_t>> g_duration_matrix = {
 };
 
 TEST(RoutingTest, SingleVehicleWithDepot) {
-  ortoolsRouting::SingleDepot depot_config{.depot = 0};
-  ortoolsRouting::RoutingConfig config{
-      .duration_matrix = g_duration_matrix,
-      .depot_config = depot_config,
-  };
-  auto responses = ortoolsRouting::Routing(config);
+  auto responses = OrtoolsLib::Routing::builder()
+                       .setDurationMatrix(g_duration_matrix)
+                       .setDepotConfig(OrtoolsLib::SingleDepot{.depot = 0})
+                       .build()
+                       .solve();
 
   EXPECT_EQ(responses.size(), 1);
 }
 
-TEST(RoutingTest, SingleVehicleWithStartEnd) {
-  ortoolsRouting::startEndPair depot_config{
-      .starts = {0},
-      .ends = {-1},
-  };
+TEST(RoutingTest, SingleVehicleWithStartEndAndServiceTime) {
 
-  ortoolsRouting::RoutingConfig config{
-      .duration_matrix = g_duration_matrix,
-      .depot_config = std::move(depot_config),
-  };
 
-  auto responses = ortoolsRouting::Routing(std::move(config));
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix(g_duration_matrix)
+          .setDepotConfig(OrtoolsLib::startEndPair{
+              .starts = {0},
+              .ends = {-1},
+          })
+          .withServiceTime(OrtoolsLib::RoutingOptionWithServiceTime{
+              .service_time = {0, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+                               15}})
+          .build()
+          .solve();
 
   EXPECT_EQ(responses.size(), 1);
-  vector<int> expected_route = {0, 7, 2, 3, 9, 10, 5, 4, 12, 11, 1, 8, 6};
+  std::vector<int> expected_route = {0, 7, 2, 3, 9, 10, 5, 4, 12, 11, 1, 8, 6};
   EXPECT_EQ(expected_route, responses[0].route);
 }
 
 TEST(RoutingTest, SingleVehicleWithPickAndDrop) {
-  vector<vector<int64_t>> duration_matrix{
-      {0, 1, 2, 3},
-      {1, 0, 4, 5},
-      {2, 4, 0, 6},
-      {3, 5, 6, 0},
-  };
-  ortoolsRouting::startEndPair depot_config{
-      .starts = {-1},
-      .ends = {-1},
-  };
 
-  vector<ortoolsRouting::PickupDelivery> pickups_deliveries = {
-      {2, 0},
-      {3, 1},
-      {3, 2},
-  };
-
-  ortoolsRouting::RoutingOptionWithPickupDelivery pd{
-      .pickups_deliveries = std::move(pickups_deliveries),
-  };
-  ortoolsRouting::RoutingConfig config{
-      .duration_matrix = std::move(duration_matrix),
-      .depot_config = std::move(depot_config),
-      .with_pickup_delivery = std::move(pd),
-  };
-
-  auto responses = ortoolsRouting::Routing(std::move(config));
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix({
+              {0, 1, 2, 3},
+              {1, 0, 4, 5},
+              {2, 4, 0, 6},
+              {3, 5, 6, 0},
+          })
+          .setDepotConfig(OrtoolsLib::startEndPair{
+              .starts = {-1},
+              .ends = {-1},
+          })
+          .withPickupDelivery(
+              OrtoolsLib::RoutingOptionWithPickupDelivery{.pickups_deliveries =
+                                                              {
+                                                                  {2, 0},
+                                                                  {3, 1},
+                                                                  {3, 2},
+                                                              }})
+          .build()
+          .solve();
 
   EXPECT_EQ(responses.size(), 1);
-  vector<int> expected_route = {3, 3, 2, 2, 0, 1};
+  std::vector<int> expected_route = {3, 3, 2, 2, 0, 1};
   EXPECT_EQ(expected_route, responses[0].route);
 }
 
 TEST(RoutingTest, SingleVehicleWithPickAndDropAndDepot) {
-  vector<vector<int64_t>> duration_matrix{
-      {0, 1, 2, 3},
-      {1, 0, 4, 5},
-      {2, 4, 0, 6},
-      {3, 5, 6, 0},
-  };
-  ortoolsRouting::SingleDepot depot_config{
-      .depot = 1,
-  };
+ 
 
-  vector<ortoolsRouting::PickupDelivery> pickups_deliveries = {
-      {2, 0},
-      {3, 1},
-      {3, 2},
-  };
-
-  ortoolsRouting::RoutingOptionWithPickupDelivery pd{
-      .pickups_deliveries = std::move(pickups_deliveries),
-  };
-  ortoolsRouting::RoutingConfig config{
-      .duration_matrix = std::move(duration_matrix),
-      .depot_config = std::move(depot_config),
-      .with_pickup_delivery = std::move(pd),
-  };
-
-  auto responses = ortoolsRouting::Routing(std::move(config));
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix({
+              {0, 1, 2, 3},
+              {1, 0, 4, 5},
+              {2, 4, 0, 6},
+              {3, 5, 6, 0},
+          })
+          .setDepotConfig(OrtoolsLib::SingleDepot{.depot = 1})
+          .withPickupDelivery(
+              OrtoolsLib::RoutingOptionWithPickupDelivery{.pickups_deliveries =
+                                                              {
+                                                                  {2, 0},
+                                                                  {3, 1},
+                                                                  {3, 2},
+                                                              }})
+          .build()
+          .solve();
 
   EXPECT_EQ(responses.size(), 1);
-  vector<int> expected_route = {1, 3, 3, 2, 2, 0, 1, 1};
+  std::vector<int> expected_route = {1, 3, 3, 2, 2, 0, 1, 1};
   EXPECT_EQ(expected_route, responses[0].route);
 }
 
 TEST(RoutingTest, PickAndDropWithCapacity) {
-  vector<vector<int64_t>> duration_matrix{
-      {0, 1, 2, 3},
-      {1, 0, 4, 5},
-      {2, 4, 0, 6},
-      {3, 5, 6, 0},
-  };
-  ortoolsRouting::SingleDepot depot_config{
-      .depot = 1,
-  };
-
-  vector<ortoolsRouting::PickupDelivery> pickups_deliveries = {
-      {2, 0},
-      {3, 1},
-      {3, 2},
-  };
-
-  vector<int64_t> demands{5, 10, 10, 30, 20};
-
-  ortoolsRouting::RoutingOptionWithCapacity cap{
-      .capacities = {40},
-      .demands = std::move(demands),
-  };
-  ortoolsRouting::RoutingOptionWithPickupDelivery pd{
-      .pickups_deliveries = std::move(pickups_deliveries),
-  };
-  ortoolsRouting::RoutingOptionWithPenalties dropPinalties{.penalties = 1000};
-  ortoolsRouting::RoutingConfig config{
-      .duration_matrix = std::move(duration_matrix),
-      .depot_config = std::move(depot_config),
-      .with_capacity = std::move(cap),
-      .with_pickup_delivery = std::move(pd),
-      .with_drop_penalties = std::move(dropPinalties),
-  };
-
-  auto responses = ortoolsRouting::Routing(std::move(config));
+  
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix({
+              {0, 1, 2, 3},
+              {1, 0, 4, 5},
+              {2, 4, 0, 6},
+              {3, 5, 6, 0},
+          })
+          .setDepotConfig(OrtoolsLib::SingleDepot{.depot = 1})
+          .withPickupDelivery(
+              OrtoolsLib::RoutingOptionWithPickupDelivery{.pickups_deliveries =
+                                                              {
+                                                                  {2, 0},
+                                                                  {3, 1},
+                                                                  {3, 2},
+                                                              }})
+          .withCapacity(OrtoolsLib::RoutingOptionWithCapacity{
+              .capacities = {40}, .demands = {5, 10, 10, 30}})
+          .withDropPenalties(
+              OrtoolsLib::RoutingOptionWithPenalties{.penalties{int64_t(1000)}})
+          .build()
+          .solve();
 
   EXPECT_EQ(responses.size(), 1);
-  vector<int> expected_route = {1, 2, 0, 3, 1, 1};
+  std::vector<int> expected_route = {1, 2, 0, 3, 1, 1};
   EXPECT_EQ(expected_route, responses[0].route);
+}
+
+TEST(RoutingTest, WithTimeWindow) {
+  
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix({
+              {0, 1, 2, 3},
+              {1, 0, 4, 5},
+              {2, 4, 0, 6},
+              {3, 5, 6, 0},
+          })
+          .setDepotConfig(OrtoolsLib::startEndPair{
+              .starts = {0},
+              .ends = {-1},
+          })
+          .withTimeWindow(
+              OrtoolsLib::RoutingOptionWithTimeWindow{.time_windows =
+                                                          {
+                                                              {{0, 40}},
+                                                              {{0, 40}},
+                                                              {{0, 40}},
+                                                              {{0, 40}},
+                                                          }})
+          .withDropPenalties(
+              OrtoolsLib::RoutingOptionWithPenalties{.penalties{int64_t(1000)}})
+          .build()
+          .solve();
+
+  EXPECT_EQ(responses.size(), 1);
+  std::vector<int> expected_route = {0, 1, 2, 3};
+  EXPECT_EQ(expected_route, responses[0].route);
+  EXPECT_EQ(responses[0].total_duration, 11);
+}
+
+TEST(RoutingTest, WithVehicleBreakTime) {
+  
+
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix({
+              {0, 1, 2, 3},
+              {1, 0, 4, 5},
+              {2, 4, 0, 6},
+              {3, 5, 6, 0},
+          })
+          .setDepotConfig(OrtoolsLib::startEndPair{
+              .starts = {0},
+              .ends = {-1},
+          })
+          .withVehicleBreakTime(
+              OrtoolsLib::RoutingOptionWithVehicleBreakTime{.break_time =
+                                                                {
+                                                                    {{2, 5}},
+                                                                }})
+          .withDropPenalties(
+              OrtoolsLib::RoutingOptionWithPenalties{.penalties{int64_t(1000)}})
+          .build()
+          .solve();
+
+  EXPECT_EQ(responses.size(), 1);
+  std::vector<int> expected_route = {0, 1, 2, 3};
+  EXPECT_EQ(expected_route, responses[0].route);
+  EXPECT_EQ(responses[0].total_duration, 14);
+}
+
+TEST(RoutingTest, OneVehicleAllConfig) {
+
+  auto responses =
+      OrtoolsLib::Routing::builder()
+          .setDurationMatrix({
+              {0, 1, 2, 3},
+              {1, 0, 4, 5},
+              {2, 4, 0, 6},
+              {3, 5, 6, 0},
+          })
+          .setDepotConfig(OrtoolsLib::startEndPair{
+              .starts = {0},
+              .ends = {-1},
+          })
+          .withServiceTime(OrtoolsLib::RoutingOptionWithServiceTime{
+              .service_time = {0, 1, 1, 1}})
+          .withPickupDelivery(
+              OrtoolsLib::RoutingOptionWithPickupDelivery{.pickups_deliveries =
+                                                              {
+                                                                  {2, 0},
+                                                                  {3, 1},
+                                                                  {3, 2},
+                                                              }})
+          .withCapacity(OrtoolsLib::RoutingOptionWithCapacity{
+              .capacities = {100}, .demands = {5, 10, 10, 30}})
+          .withTimeWindow(
+              OrtoolsLib::RoutingOptionWithTimeWindow{.time_windows =
+                                                          {
+                                                              {{0, 40}},
+                                                              {{10, 50}},
+                                                              {{20, 60}},
+                                                              {{30, 70}},
+                                                          }})
+          .withVehicleBreakTime(
+              OrtoolsLib::RoutingOptionWithVehicleBreakTime{.break_time =
+                                                                {
+                                                                    {{2, 3}},
+                                                                }})
+          .withDropPenalties(
+              OrtoolsLib::RoutingOptionWithPenalties{.penalties = {1000}})
+          .build()
+          .solve();
+
+  EXPECT_EQ(responses.size(), 1);
+  std::vector<int> expected_route{0, 3, 3, 2, 2, 0, 1};
+  EXPECT_EQ(expected_route, responses[0].route);
+  EXPECT_EQ(responses[0].total_duration, 44);
 }

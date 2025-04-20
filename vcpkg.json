@@ -1,11 +1,12 @@
 {
   "dependencies": [
+    "benchmark",
     "cpr",
+    "drogon",
+    "eigen3",
     "fmt",
     "grpc",
-    "nlohmann-json",
-    "benchmark",
     "gtest",
-    "eigen3"
+    "jsoncpp"
   ]
 }

@@ -34,9 +34,12 @@ message RoutingRequestWithPickupAndDeliveries {
   repeated pair pickupDrops = 1; // []pair -> pickup and drop
 }
 
+message timeWindow {
+  repeated pair pairs = 1; // []pair
+}
 
 message RoutingRequestWithTimeWindows {
-  repeated pair timeWindows = 2; // []pair -> time windows
+  repeated timeWindow timeWindows = 2; // [][]pair -> time windows
 }
 
 message RoutingRequestWithServiceTime {
@@ -44,7 +47,18 @@ message RoutingRequestWithServiceTime {
   repeated int64 serviceTime = 1; // []int
 }
 
+message RoutingRequestWithPenalties {
+  oneof Penalty {
+    // follows the number of locations as the length of the array
+    int64 penalty = 1; //int
+    units penalties  = 2; // []int
+  }
+}
 
+message RoutingRequestWIthVehicleBreakTime {
+  // follows the number of vehicles as the length of the array
+  repeated timeWindow breakTimes = 1; // [][]pair
+}
 
 message RoutingRequest {
   repeated units durationMatrix = 1; // [][]int
@@ -59,6 +73,8 @@ message RoutingRequest {
   optional RoutingRequestWithPickupAndDeliveries withPickupAndDeliveries = 7; // with pickup and deliveries
   optional RoutingRequestWithTimeWindows withTimeWindows = 8; // with time windows
   optional RoutingRequestWithServiceTime withServiceTime = 9; // with service time
+  optional RoutingRequestWithPenalties withPenalties = 10; // with penalties
+  optional RoutingRequestWIthVehicleBreakTime withBreakTime = 11; // with break time
 }
 
 
