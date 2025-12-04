@@ -1,21 +1,30 @@
+#include <drogon/HttpTypes.h>
 #include <drogon/drogon.h>
 
 #include "dtos/routingDto.h"
-#include "json/json.h"
 #include "lib/routing.h"
 
 namespace v1 {
 namespace routing {
-class Routing : public drogon::HttpController<Routing> {
- public:
+class route : public drogon::HttpController<route> {
+public:
   METHOD_LIST_BEGIN
-  METHOD_ADD(Routing::routing, "", drogon::Post);
+  METHOD_ADD(route::routing, "", drogon::Post);
   METHOD_LIST_END
 
-  void routing(
-      const drogon::HttpRequestPtr &req,
-      std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
-    auto model = RoutingDTO::parseJSON(req->getJsonObject());
+  void
+  routing(const drogon::HttpRequestPtr &req,
+          std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+
+    RoutingDTO::RoutingModel model;
+    try {
+      model = RoutingDTO::parseJSON(req->getJsonObject());
+    } catch (const RoutingDTO::ParseErrorElement &e) {
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(e.toJson());
+        resp->setStatusCode(drogon::k400BadRequest);
+        callback(resp);
+        return;
+    }
 
     std::vector<OrtoolsLib::RoutingResponse> response =
         OrtoolsLib::Routing::builder()
@@ -56,5 +65,5 @@ class Routing : public drogon::HttpController<Routing> {
     callback(resp);
   }
 };
-}  // namespace routing
-}  // namespace v1
+} // namespace routing
+} // namespace v1

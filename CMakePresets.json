@@ -8,9 +8,15 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_C_COMPILER": "clang-20",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-clang",
+        "CMAKE_CXX_COMPILER": "clang++-20",
         "ENABLE_COVERAGE": "ON",
-        "ENABLE_TESTING": "ON"
+        "ENABLE_TESTING": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "ENABLE_SANITIZER": "OFF",
+        "ENFORCE_STATIC_ANALYSIS": "OFF",
+        "ENABLE_TSAN": "OFF"
       }
     }
   ]

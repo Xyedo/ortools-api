@@ -1,4 +1,4 @@
-#include "../handler/grpc.cpp"
+#include "handler/grpc.cpp"
 
 int main() {
   grpcHandler::RunServer();

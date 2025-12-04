@@ -2,16 +2,16 @@
 #include "routingDto.h"
 
 #include <cstdint>
-#include <vector>
+#include <format>
 #include <json/json.h>
-#include <optional>
-#include <variant>
-#include <stdexcept>
 #include <lib/routing.h>
+#include <optional>
 #include <routing-proto/routing.grpc.pb.h>
+#include <variant>
+#include <vector>
 
 namespace RoutingDTO {
-RoutingModel intoEntity(const routing::RoutingRequest *const request) {
+RoutingModel intoEntity(const routing::RoutingRequest *const request) noexcept {
   std::vector<std::vector<int64_t>> duration_matrix;
   for (const auto &row : request->durationmatrix()) {
     std::vector<int64_t> row_vector(row.value().begin(), row.value().end());
@@ -56,7 +56,7 @@ RoutingModel intoEntity(const routing::RoutingRequest *const request) {
       });
     }
     with_pickup_delivery.emplace(OrtoolsLib::RoutingOptionWithPickupDelivery{
-        .pickups_deliveries = move(pickups_deliveries),
+        .pickups_deliveries = std::move(pickups_deliveries),
     });
   }
 
@@ -142,30 +142,32 @@ RoutingModel intoEntity(const routing::RoutingRequest *const request) {
   };
 }
 
-
 RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
   if (!json) {
-    throw std::invalid_argument("json is null");
+    throw ParseErrorElement("json is null");
   }
 
   if (!(*json).isMember("durationMatrix") ||
       !(*json)["durationMatrix"].isArray()) {
-    throw std::invalid_argument("durationMatrix is not an array");
+    throw ParseErrorElement("durationMatrix", {"expected arrays"});
   }
 
   std::vector<std::vector<int64_t>> duration_matrix;
   duration_matrix.reserve((*json)["durationMatrix"].size());
 
-  for (const auto &row : (*json)["durationMatrix"]) {
+  for (int i = 0; i < (*json)["durationMatrix"].size(); ++i) {
+    const auto &row = (*json)["durationMatrix"][i];
     if (!row.isArray()) {
-      throw std::invalid_argument("durationMatrix row is not an array");
+      throw ParseErrorElement(std::format("durationMatrix[{}]", i),
+                              {"expected arrays"});
     }
 
     std::vector<int64_t> row_vector;
     row_vector.reserve(row.size());
     for (const auto &value : row) {
       if (!value.isInt64()) {
-        throw std::invalid_argument("durationMatrix[i] value is not int64");
+        throw ParseErrorElement(std::format("durationMatrix[{}]", i),
+                                {"value is not integer"});
       }
 
       row_vector.push_back(value.asInt64());
@@ -176,7 +178,7 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
   int32_t num_vehicles = 1;
   if ((*json).isMember("numVehicles")) {
     if (!(*json)["numVehicles"].isInt()) {
-      throw std::invalid_argument("numVehicles is not int");
+      throw ParseErrorElement("numVehicles", {"value is not integer"});
     }
 
     num_vehicles = (*json)["numVehicles"].asInt();
@@ -184,28 +186,35 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
 
   std::variant<OrtoolsLib::SingleDepot, OrtoolsLib::startEndPair> depot_config;
   if (!(*json).isMember("routingMode")) {
-    throw std::invalid_argument("routingMode is required");
+    throw ParseErrorElement("routingMode", {"value is required"});
   }
 
   if (!(*json)["routingMode"].isMember("type")) {
-    throw std::invalid_argument("routingMode.type is required");
+    throw ParseErrorElement("routingMode.type", {"value is required"});
   }
   if (!(*json)["routingMode"].isMember("payload")) {
-    throw std::invalid_argument("routingMode.payload is required");
+    // throw std::invalid_argument("routingMode.payload is required");
+    throw ParseErrorElement("routingMode.payload", {"value is required"});
   }
 
   if (!(*json)["routingMode"]["type"].isString()) {
-    throw std::invalid_argument("routingMode.type is expected to be string");
+    // throw std::invalid_argument("routingMode.type is expected to be string");
+    throw ParseErrorElement("routingMode.type",
+                            {"value is expected to be string"});
   }
 
   if (auto routingModeType = (*json)["routingMode"]["type"].asString();
       routingModeType == "depot") {
     if (!(*json)["routingMode"]["payload"].isMember("depot")) {
-      throw std::invalid_argument("routingMode.payload.depot is required");
+      // throw std::invalid_argument("routingMode.payload.depot is required");
+      throw ParseErrorElement("routingMode.payload.depot",
+                              {"value is required"});
     }
     if (!(*json)["routingMode"]["payload"]["depot"].isInt()) {
-      throw std::invalid_argument(
-          "routingMode.payload.depot is expected to be int");
+      // throw std::invalid_argument(
+      //     "routingMode.payload.depot is expected to be int");
+      throw ParseErrorElement("routingMode.payload.depot",
+                              {"value is expected to be int"});
     }
 
     depot_config.emplace<OrtoolsLib::SingleDepot>(OrtoolsLib::SingleDepot{
@@ -213,27 +222,36 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
 
   } else if (routingModeType == "startEnd") {
     if (!(*json)["routingMode"]["payload"].isMember("starts")) {
-      throw std::invalid_argument("routingMode.payload.starts is required");
+      // throw std::invalid_argument("routingMode.payload.starts is required");
+      throw ParseErrorElement("routingMode.payload.starts",
+                              {"value is required"});
     }
     if (!(*json)["routingMode"]["payload"].isMember("ends")) {
-      throw std::invalid_argument("routingMode.payload.ends is required");
+      // throw std::invalid_argument("routingMode.payload.ends is required");
+      throw ParseErrorElement("routingMode.payload.ends",
+                              {"value is required"});
     }
 
     if (!(*json)["routingMode"]["payload"]["starts"].isArray()) {
-      throw std::invalid_argument(
-          "routingMode.payload.starts is expected to be an array");
+      // throw std::invalid_argument(
+      //     "routingMode.payload.starts is expected to be an array");
+      throw ParseErrorElement("routingMode.payload.starts",
+                              {"expected to be an array"});
     }
     if (!(*json)["routingMode"]["payload"]["ends"].isArray()) {
-      throw std::invalid_argument(
-          "routingMode.payload.ends is expected to be an array");
+      throw ParseErrorElement("routingMode.payload.ends",
+                              {"expected to be an array"});
     }
     std::vector<int> starts;
     starts.reserve((*json)["routingMode"]["payload"]["starts"].size());
 
-    for (const auto &value : (*json)["routingMode"]["payload"]["starts"]) {
+    for (int i = 0; i < (*json)["routingMode"]["payload"]["starts"].size();
+         i++) {
+      const auto &value = (*json)["routingMode"]["payload"]["starts"][i];
       if (!value.isInt()) {
-        throw std::invalid_argument(
-            "routingMode.payload.starts value is not int64");
+        throw ParseErrorElement(
+            std::format("routingMode.payload.starts[{}]", i),
+            {"expected to be an integer"});
       }
 
       starts.push_back(value.asInt64());
@@ -242,10 +260,11 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
     std::vector<int> ends;
     ends.reserve((*json)["routingMode"]["payload"]["ends"].size());
 
-    for (const auto &value : (*json)["routingMode"]["payload"]["ends"]) {
+    for (int i = 0; i < (*json)["routingMode"]["payload"]["ends"].size(); ++i) {
+      const auto &value = (*json)["routingMode"]["payload"]["ends"][i];
       if (!value.isInt()) {
-        throw std::invalid_argument(
-            "routingMode.payload.ends value is not int64");
+        throw ParseErrorElement(std::format("routingMode.payload.ends[{}]", i),
+                                {"expected to be an integer"});
       }
 
       ends.push_back(value.asInt64());
@@ -255,8 +274,10 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
         .ends = std::move(ends),
     });
   } else {
-    throw std::invalid_argument(
-        "routingMode.type is expected to be enum of 'depot' | 'startEnd'");
+    // throw std::invalid_argument(
+    //     "routingMode.type is expected to be enum of 'depot' | 'startEnd'");
+    throw ParseErrorElement("routingMode.type",
+                            {"expected to be enum of 'depot' | 'startEnd'"});
   }
 
   int64_t apiTimeLimit = 1;
@@ -269,19 +290,27 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
   std::optional<OrtoolsLib::RoutingOptionWithCapacity> with_capacity;
   if ((*json).isMember("withCapacity")) {
     if (!(*json)["withCapacity"].isMember("vehicleCapacity")) {
-      throw std::invalid_argument("withCapacity.vehicleCapacity is required");
+      // throw std::invalid_argument("withCapacity.vehicleCapacity is
+      // required");
+      throw ParseErrorElement("withCapacity.vehicleCapacity",
+                              {"value is required"});
     }
     if (!(*json)["withCapacity"].isMember("demands")) {
-      throw std::invalid_argument("withCapacity.demands is required");
+      // throw std::invalid_argument("withCapacity.demands is required");
+      throw ParseErrorElement("withCapacity.demands", {"value is required"});
     }
 
     if (!(*json)["withCapacity"]["vehicleCapacity"].isArray()) {
-      throw std::invalid_argument(
-          "withCapacity.vehicleCapacity is expected to be an array");
+      // throw std::invalid_argument(
+      // "withCapacity.vehicleCapacity is expected to be an array");
+      throw ParseErrorElement("withCapacity.vehicleCapacity",
+                              {"value is expected to be an array"});
     }
     if (!(*json)["withCapacity"]["demands"].isArray()) {
-      throw std::invalid_argument(
-          "withCapacity.demands is expected to be an array");
+      // throw std::invalid_argument(
+      //     "withCapacity.demands is expected to be an array");
+      throw ParseErrorElement("withCapacity.demands",
+                              {"value is expected to be an array"});
     }
 
     std::vector<int64_t> vehicle_capacity;
@@ -289,8 +318,8 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
 
     for (const auto &value : (*json)["withCapacity"]["vehicleCapacity"]) {
       if (!value.isInt64()) {
-        throw std::invalid_argument(
-            "withCapacity.vehicleCapacity value is not int64");
+        throw ParseErrorElement("withCapacity.vehicleCapacity",
+                                {"value is not integer"});
       }
 
       vehicle_capacity.push_back(value.asInt64());
@@ -301,7 +330,10 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
 
     for (const auto &value : (*json)["withCapacity"]["demands"]) {
       if (!value.isInt64()) {
-        throw std::invalid_argument("withCapacity.demands value is not int64");
+        // throw std::invalid_argument("withCapacity.demands value is not
+        // int64");
+        throw ParseErrorElement("withCapacity.demands",
+                                {"value is not integer"});
       }
 
       demands.push_back(value.asInt64());
@@ -316,24 +348,32 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
       with_pickup_delivery;
   if ((*json).isMember("withPickupAndDeliveries")) {
     if (!(*json)["withPickupAndDeliveries"].isMember("pickDrops")) {
-      throw std::invalid_argument(
-          "withPickupAndDeliveries.pickDrops is required");
+      // throw std::invalid_argument(
+      //     "withPickupAndDeliveries.pickDrops is required");
+      throw ParseErrorElement("withPickupAndDeliveries.pickDrops",
+                              {"value is required"});
     }
 
     if (!(*json)["withPickupAndDeliveries"]["pickDrops"].isArray()) {
-      throw std::invalid_argument(
-          "withPickupDelivery.pickupsDeliveries is expected to be an array");
+      // throw std::invalid_argument(
+      //     "withPickupDelivery.pickupsDeliveries is expected to be an array");
+      throw ParseErrorElement("withPickupAndDeliveries.pickDrops",
+                              {"value is expected to be an array"});
     }
 
     std::vector<OrtoolsLib::PickupDelivery> pickups_deliveries;
     pickups_deliveries.reserve(
         (*json)["withPickupAndDeliveries"]["pickDrops"].size());
 
-    for (const auto &value :
-         (*json)["withPickupAndDeliveries"]["pickDrops"]) {
-      if (!value.isMember("pickup") || !value.isMember("drop")) {
-        throw std::invalid_argument(
-            "withPickupAndDeliveries.pickDrops.pickup|drop is required");
+    for (const auto &value : (*json)["withPickupAndDeliveries"]["pickDrops"]) {
+      if (!value.isMember("pickup")) {
+        throw ParseErrorElement("withPickupAndDeliveries.pickDrops.pickup",
+                                {"value is required"});
+      }
+
+      if (!value.isMember("drop")) {
+        throw ParseErrorElement("withPickupAndDeliveries.pickDrops.drop",
+                                {"value is required"});
       }
 
       pickups_deliveries.emplace_back(OrtoolsLib::PickupDelivery{
@@ -348,30 +388,41 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
   std::optional<OrtoolsLib::RoutingOptionWithTimeWindow> with_time_window;
   if ((*json).isMember("withTimeWindows")) {
     if (!(*json)["withTimeWindows"].isMember("timeWindows")) {
-      throw std::invalid_argument("withTimeWindows.timeWindows is required");
+      throw ParseErrorElement("withTimeWindows.timeWindows",
+                              {"value is required"});
     }
 
     if (!(*json)["withTimeWindows"]["timeWindows"].isArray()) {
-      throw std::invalid_argument(
-          "withTimeWindows.timeWindows is expected to be an array");
+      throw ParseErrorElement("withTimeWindows.timeWindows",
+                              {"value is expected to be an array"});
     }
 
     std::vector<std::vector<OrtoolsLib::TimeWindow>> time_windows;
     time_windows.reserve((*json)["withTimeWindows"]["timeWindows"].size());
 
-    for (const auto &value : (*json)["withTimeWindows"]["timeWindows"]) {
+    for (int i = 0; i < (*json)["withTimeWindows"]["timeWindows"].size(); ++i) {
+      const auto &value = (*json)["withTimeWindows"]["timeWindows"][i];
       if (!value.isArray()) {
-        throw std::invalid_argument(
-            "withTimeWindow.timeWindows value is not int64");
+        throw ParseErrorElement(
+            std::format("withTimeWindow.timeWindows[{}]", i),
+            {"value is not an array"});
       }
 
       std::vector<OrtoolsLib::TimeWindow> time_window;
       time_window.reserve(value.size());
 
-      for (const auto &tw : value) {
-        if (!tw.isMember("start") || !tw.isMember("end")) {
-          throw std::invalid_argument(
-              "withTimeWindows.timeWindows.start|end is required");
+      for (int j = 0; j < value.size(); ++j) {
+        const auto &tw = value[j];
+        if (!tw.isMember("start")) {
+          throw ParseErrorElement(
+              std::format("withTimeWindow.timeWindows[{}][{}].start", i, j),
+              {"value is required"});
+        }
+
+        if (!tw.isMember("end")) {
+          throw ParseErrorElement(
+              std::format("withTimeWindow.timeWindows[{}][{}].end", i, j),
+              {"value is required"});
         }
 
         time_window.emplace_back(OrtoolsLib::TimeWindow{
@@ -385,24 +436,33 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
         .time_windows = std::move(time_windows),
     });
   }
+
   std::optional<OrtoolsLib::RoutingOptionWithServiceTime> with_service_time;
   if ((*json).isMember("withServiceTime")) {
     if (!(*json)["withServiceTime"].isMember("serviceTime")) {
-      throw std::invalid_argument("withServiceTime.serviceTime is required");
+      // throw std::invalid_argument("withServiceTime.serviceTime is required");
+      throw ParseErrorElement("withServiceTime.serviceTime",
+                              {"value is required"});
     }
 
     if (!(*json)["withServiceTime"]["serviceTime"].isArray()) {
-      throw std::invalid_argument(
-          "withServiceTime.serviceTime is expected to be an array");
+      // throw std::invalid_argument(
+      //     "withServiceTime.serviceTime is expected to be an array");
+      throw ParseErrorElement("withServiceTime.serviceTime",
+                              {"value is expected to be an array"});
     }
 
     std::vector<int64_t> service_time;
     service_time.reserve((*json)["withServiceTime"]["serviceTime"].size());
 
-    for (const auto &value : (*json)["withServiceTime"]["serviceTime"]) {
+    for (int i = 0; i < (*json)["withServiceTime"]["serviceTime"].size(); ++i) {
+      const auto &value = (*json)["withServiceTime"]["serviceTime"][i];
       if (!value.isInt64()) {
-        throw std::invalid_argument(
-            "withServiceTime.serviceTime value is not int64");
+        // throw std::invalid_argument(
+        //     "withServiceTime.serviceTime value is not int64");
+        throw ParseErrorElement(
+            std::format("withServiceTime.serviceTime[{}]", i),
+            {"value is expected to be int64"});
       }
 
       service_time.push_back(value.asInt64());
@@ -415,25 +475,28 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
   if ((*json).isMember("withDropPenalties")) {
     if ((*json)["withDropPenalties"].isMember("penalty")) {
       if (!(*json)["withDropPenalties"]["penalty"].isInt64()) {
-        throw std::invalid_argument(
-            "withDropPenalties.penalty is expected to be int64");
+        throw ParseErrorElement("withDropPenalties.penalty",
+                                {"value is expected to be int64"});
       }
       with_drop_penalties.emplace(OrtoolsLib::RoutingOptionWithPenalties{
           .penalties = (*json)["withDropPenalties"]["penalty"].asInt64(),
       });
     } else if ((*json)["withDropPenalties"].isMember("penalties")) {
       if (!(*json)["withDropPenalties"]["penalties"].isArray()) {
-        throw std::invalid_argument(
-            "withDropPenalties.penalties is expected to be an array");
+        throw ParseErrorElement("withDropPenalties.penalties",
+                                {"value is expected to be an array"});
       }
 
       std::vector<int64_t> penalties;
       penalties.reserve((*json)["withDropPenalties"]["penalties"].size());
 
-      for (const auto &value : (*json)["withDropPenalties"]["penalties"]) {
+      for (int i = 0; i < (*json)["withDropPenalties"]["penalties"].size();
+           ++i) {
+        const auto &value = (*json)["withDropPenalties"]["penalties"][i];
         if (!value.isInt64()) {
-          throw std::invalid_argument(
-              "withDropPenalties.penalties value is not int64");
+          throw ParseErrorElement(
+              std::format("withDropPenalties.penalties[{}]", i),
+              {"value is expected to be int64"});
         }
 
         penalties.push_back(value.asInt64());
@@ -448,31 +511,42 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
       with_vehicle_break_time;
   if ((*json).isMember("withVehicleBreakTime")) {
     if (!(*json)["withVehicleBreakTime"].isMember("breakTimes")) {
-      throw std::invalid_argument(
-          "withVehicleBreakTime.breakTimes is required");
+      throw ParseErrorElement("withVehicleBreakTime.breakTimes",
+                              {"breakTimes is required"});
     }
 
     if (!(*json)["withVehicleBreakTime"]["breakTimes"].isArray()) {
-      throw std::invalid_argument(
-          "withVehicleBreakTime.breakTimes is expected to be an array");
+      throw ParseErrorElement("withVehicleBreakTime.breakTimes",
+                              {"breakTimes is expected to be an array"});
     }
 
     std::vector<std::vector<OrtoolsLib::TimeWindow>> break_time;
     break_time.reserve((*json)["withVehicleBreakTime"]["breakTimes"].size());
 
-    for (const auto &value : (*json)["withVehicleBreakTime"]["breakTimes"]) {
+    for (int i = 0; i < (*json)["withVehicleBreakTime"]["breakTimes"].size();
+         ++i) {
+      const auto &value = (*json)["withVehicleBreakTime"]["breakTimes"][i];
       if (!value.isArray()) {
-        throw std::invalid_argument(
-            "withVehicleBreakTime.breakTimes value is not array of array");
+        throw ParseErrorElement(
+            std::format("withVehicleBreakTime.breakTimes[{}]", i),
+            {"value isexpected to be an array"});
       }
 
       std::vector<OrtoolsLib::TimeWindow> time_windows;
       time_windows.reserve(value.size());
 
-      for (const auto &tw : value) {
-        if (!tw.isMember("start") || !tw.isMember("end")) {
-          throw std::invalid_argument(
-              "withVehicleBreakTime.breakTimes[].start|end is required");
+      for (int j = 0; j < value.size(); ++j) {
+        const auto &tw = value[j];
+        if (!tw.isMember("start")) {
+          throw ParseErrorElement(
+              std::format("withVehicleBreakTime.breakTimes[{}][{}].start", i,
+                          j),
+              {"value is required"});
+        }
+        if (!tw.isMember("end")) {
+          throw ParseErrorElement(
+              std::format("withVehicleBreakTime.breakTimes[{}][{}].end", i, j),
+              {"value is required"});
         }
 
         time_windows.emplace_back(OrtoolsLib::TimeWindow{
@@ -501,4 +575,4 @@ RoutingModel parseJSON(std::shared_ptr<Json::Value> json) {
       .with_vehicle_break_time = std::move(with_vehicle_break_time),
   };
 }
-}  // namespace RoutingDTO
+} // namespace RoutingDTO

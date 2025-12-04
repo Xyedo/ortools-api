@@ -2,3 +2,5 @@ build
 .vscode
 coverage.info
 coverage
+vcpkg_installed
+.cache

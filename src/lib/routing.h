@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -84,7 +86,7 @@ struct RoutingResponse {
 
 class RoutingBuilder;
 class Routing {
- private:
+private:
   std::vector<std::vector<int64_t>> _duration_matrix;
   std::variant<SingleDepot, startEndPair> _depot_config;
   int32_t _num_vehicles = 1;
@@ -101,13 +103,11 @@ class Routing {
   void _addDummyLocAtEnd();
   void _duplicateNodesToBack(int at);
 
- public:
+public:
   Routing(const Routing &other)
       : _duration_matrix(other._duration_matrix),
-        _depot_config(other._depot_config),
-        _num_vehicles(other._num_vehicles),
-        _time_limit(other._time_limit),
-        _with_capacity(other._with_capacity),
+        _depot_config(other._depot_config), _num_vehicles(other._num_vehicles),
+        _time_limit(other._time_limit), _with_capacity(other._with_capacity),
         _with_pickup_delivery(other._with_pickup_delivery),
         _with_time_window(other._with_time_window),
         _with_service_time(other._with_service_time),
@@ -118,8 +118,7 @@ class Routing {
   Routing(Routing &&other) noexcept
       : _duration_matrix(std::move(other._duration_matrix)),
         _depot_config(std::move(other._depot_config)),
-        _num_vehicles(other._num_vehicles),
-        _time_limit(other._time_limit),
+        _num_vehicles(other._num_vehicles), _time_limit(other._time_limit),
         _with_capacity(std::move(other._with_capacity)),
         _with_pickup_delivery(std::move(other._with_pickup_delivery)),
         _with_time_window(std::move(other._with_time_window)),
@@ -135,21 +134,34 @@ class Routing {
   friend class RoutingBuilder;
   std::vector<RoutingResponse> solve();
 };
+class InvalidConfiguration : public std::exception {
+    std::string code = "INVALID_CONFIGURATION";
+    std::string key;
+    std::string message;
+public:
+  InvalidConfiguration(const std::string key) : key(std::move(key)), _message(std::move(key)) {}
+  InvalidConfiguration(const std::string key, const std::string message): key(std::move(key)), message(std::move(message)) {}
+  const char *what() const noexcept override { return _message.c_str(); }
+
+
+private:
+  std::string _message;
+};
 
 class RoutingBuilder {
- private:
+private:
   Routing _routing;
-  void _validate();
+  void _validate() const;
 
- public:
+public:
   RoutingBuilder(Routing &r) : _routing(r) {}
-  RoutingBuilder &setDurationMatrix(
-      const std::vector<std::vector<int64_t>> matrix) {
+  RoutingBuilder &
+  setDurationMatrix(const std::vector<std::vector<int64_t>> matrix) {
     _routing._duration_matrix = matrix;
     return *this;
   }
-  RoutingBuilder &setDepotConfig(
-      const std::variant<SingleDepot, startEndPair> depot) {
+  RoutingBuilder &
+  setDepotConfig(const std::variant<SingleDepot, startEndPair> depot) {
     _routing._depot_config = depot;
     return *this;
   }
@@ -162,15 +174,15 @@ class RoutingBuilder {
     _routing._time_limit = time_limit;
     return *this;
   }
-  RoutingBuilder &withCapacity(
-      const std::optional<RoutingOptionWithCapacity> with_capacity) {
+  RoutingBuilder &
+  withCapacity(const std::optional<RoutingOptionWithCapacity> with_capacity) {
     _routing._with_capacity = with_capacity;
     return *this;
   }
 
-  RoutingBuilder &withPickupDelivery(
-      const std::optional<RoutingOptionWithPickupDelivery>
-          with_pickup_delivery) {
+  RoutingBuilder &
+  withPickupDelivery(const std::optional<RoutingOptionWithPickupDelivery>
+                         with_pickup_delivery) {
     _routing._with_pickup_delivery = with_pickup_delivery;
     return *this;
   }
@@ -189,16 +201,16 @@ class RoutingBuilder {
     _routing._with_drop_penalties = with_drop_penalties;
     return *this;
   }
-  RoutingBuilder &withVehicleBreakTime(
-      const std::optional<RoutingOptionWithVehicleBreakTime>
-          with_vehicle_break_time) {
+  RoutingBuilder &
+  withVehicleBreakTime(const std::optional<RoutingOptionWithVehicleBreakTime>
+                           with_vehicle_break_time) {
     _routing._with_vehicle_break_time = with_vehicle_break_time;
     return *this;
   }
 
-  Routing build();
+  Routing build() const;
 };
 
-}  // namespace OrtoolsLib
+} // namespace OrtoolsLib
 
-#endif  // ROUTING_H
+#endif // ROUTING_H

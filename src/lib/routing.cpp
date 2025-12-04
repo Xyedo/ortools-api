@@ -9,16 +9,16 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <map>
 #include <optional>
-#include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
 namespace OrtoolsLib {
 std::vector<RoutingResponse> Routing::solve() {
-  std::map<int, int> new_index_to_old_index;
-  std::set<int> pick_drop_set;
+  std::unordered_map<int, int> new_index_to_old_index;
+  std::unordered_set<int> pick_drop_set;
   if (_with_pickup_delivery.has_value()) {
     for (auto &pair : _with_pickup_delivery.value().pickups_deliveries) {
       if (pick_drop_set.count(pair.pickup)) {
@@ -98,7 +98,7 @@ std::vector<RoutingResponse> Routing::solve() {
     optManager.emplace(_duration_matrix.size(), _num_vehicles, m_start_nodes,
                        m_end_nodes);
   } else {
-    throw std::invalid_argument("Invalid depot configuration");
+    throw InvalidConfiguration("Invalid depot configuration");
   }
 
   operations_research::RoutingIndexManager manager = optManager.value();
@@ -170,10 +170,10 @@ std::vector<RoutingResponse> Routing::solve() {
           return demands[from_node];
         });
     routing.AddDimensionWithVehicleCapacity(
-        demand_callback_index,  // transit callback index
-        int64_t{0},             // null capacity slack
-        capacities,             // vehicle maximum capacities
-        true,                   // start cumul to zero
+        demand_callback_index, // transit callback index
+        int64_t{0},            // null capacity slack
+        capacities,            // vehicle maximum capacities
+        true,                  // start cumul to zero
         "Capacity");
   }
 
@@ -201,16 +201,16 @@ std::vector<RoutingResponse> Routing::solve() {
 
     if (pd_policy.has_value()) {
       switch (pd_policy.value()) {
-        case PickupDropOption::FIFO:
-          routing.SetPickupAndDeliveryPolicyOfAllVehicles(
-              operations_research::RoutingModel::PICKUP_AND_DELIVERY_FIFO);
-          break;
-        case PickupDropOption::LIFO:
-          routing.SetPickupAndDeliveryPolicyOfAllVehicles(
-              operations_research::RoutingModel::PICKUP_AND_DELIVERY_LIFO);
-          break;
-        default:
-          throw std::invalid_argument("Invalid pickup and delivery policy");
+      case PickupDropOption::FIFO:
+        routing.SetPickupAndDeliveryPolicyOfAllVehicles(
+            operations_research::RoutingModel::PICKUP_AND_DELIVERY_FIFO);
+        break;
+      case PickupDropOption::LIFO:
+        routing.SetPickupAndDeliveryPolicyOfAllVehicles(
+            operations_research::RoutingModel::PICKUP_AND_DELIVERY_LIFO);
+        break;
+      default:
+        throw InvalidConfiguration("Invalid pickup and delivery policy");
       }
     }
   }
@@ -416,9 +416,11 @@ std::vector<RoutingResponse> Routing::solve() {
     }
 
     if (start_end) {
-      if (start_end->starts.at(vehicle_id) == -1) route.erase(route.begin());
+      if (start_end->starts.at(vehicle_id) == -1)
+        route.erase(route.begin());
 
-      if (start_end->ends.at(vehicle_id) == -1) route.pop_back();
+      if (start_end->ends.at(vehicle_id) == -1)
+        route.pop_back();
     }
 
     responses[vehicle_id] = RoutingResponse{
@@ -482,7 +484,8 @@ void Routing::_addDummyLocAtEnd() {
   if (_with_drop_penalties.has_value()) {
     std::vector<int64_t> *penalties = std::get_if<std::vector<int64_t>>(
         &_with_drop_penalties.value().penalties);
-    if (penalties) penalties->emplace_back(0);
+    if (penalties)
+      penalties->emplace_back(0);
   }
 }
 
@@ -518,7 +521,8 @@ void Routing::_duplicateNodesToBack(int at) {
   if (_with_drop_penalties.has_value()) {
     std::vector<int64_t> *penalties = std::get_if<std::vector<int64_t>>(
         &_with_drop_penalties.value().penalties);
-    if (penalties) penalties->emplace_back(penalties->at(at));
+    if (penalties)
+      penalties->emplace_back(penalties->at(at));
   }
 }
 
@@ -527,49 +531,53 @@ RoutingBuilder Routing::builder() {
   return RoutingBuilder{r};
 }
 
-void RoutingBuilder::_validate() {
+void RoutingBuilder::_validate() const {
   if (_routing._duration_matrix.empty()) {
-    throw std::invalid_argument("durationMatrix is empty");
+    // throw InvalidConfiguration("durationMatrix is empty");
+    throw InvalidConfiguration("durationMatrix", "empty");
   }
 
   const auto nodeCount = _routing._duration_matrix.size();
   for (size_t i = 0; i < nodeCount; ++i) {
     if (_routing._duration_matrix[i].size() != nodeCount) {
-      throw std::invalid_argument("durationMatrix is not square");
+      // throw InvalidConfiguration("durationMatrix is not square");
+      throw InvalidConfiguration("durationMatrix", "not square");
     }
   }
 
   const auto numVehicle = _routing._num_vehicles;
   if (numVehicle <= 0) {
-    throw std::invalid_argument("numVehicles is not positive");
+    // throw InvalidConfiguration("numVehicles is not positive");
+    throw InvalidConfiguration("numVehicles", "not positive");
   }
 
   if (_routing._time_limit.has_value()) {
     const auto time_limit = _routing._time_limit.value();
     if (time_limit <= 0) {
-      throw std::invalid_argument("time limit is not positive");
+      // throw InvalidConfiguration("time limit is not positive");
+      throw InvalidConfiguration("timeLimit", "not positive");
     }
   }
 
   if (_routing._with_capacity.has_value()) {
     const auto &with_capacity = _routing._with_capacity.value();
     if (with_capacity.capacities.size() != numVehicle) {
-      throw std::invalid_argument(
+      throw InvalidConfiguration(
           "capacities size is not equal to numVehicles");
     }
     for (const auto &capacity : with_capacity.capacities) {
       if (capacity <= 0) {
-        throw std::invalid_argument("capacities is not positive");
+        throw InvalidConfiguration("capacities is not positive");
       }
     }
 
     if (with_capacity.demands.size() != nodeCount) {
-      throw std::invalid_argument("demands size is not equal to nodeCount");
+      throw InvalidConfiguration("demands size is not equal to nodeCount");
     }
 
     for (const auto &demand : with_capacity.demands) {
       if (demand < 0) {
-        throw std::invalid_argument("demands is negative");
+        throw InvalidConfiguration("demands is negative");
       }
     }
   }
@@ -578,19 +586,19 @@ void RoutingBuilder::_validate() {
     const auto &with_pickup_delivery = _routing._with_pickup_delivery.value();
     const auto &pd = with_pickup_delivery.pickups_deliveries;
     if (pd.empty()) {
-      throw std::invalid_argument("pickups_deliveries size is empty");
+      throw InvalidConfiguration("pickups_deliveries size is empty");
     }
 
     for (const auto &pair : pd) {
       if (pair.pickup < 0 || pair.pickup >= nodeCount) {
-        throw std::invalid_argument("pickup index is out of range");
+        throw InvalidConfiguration("pickup index is out of range");
       }
       if (pair.delivery < 0 || pair.delivery >= nodeCount) {
-        throw std::invalid_argument("delivery index is out of range");
+        throw InvalidConfiguration("delivery index is out of range");
       }
 
       if (pair.pickup == pair.delivery) {
-        throw std::invalid_argument("pickup and delivery index are equal");
+        throw InvalidConfiguration("pickup and delivery index are equal");
       }
     }
   }
@@ -598,20 +606,20 @@ void RoutingBuilder::_validate() {
   if (_routing._with_time_window.has_value()) {
     const auto &time_windows = _routing._with_time_window.value().time_windows;
     if (time_windows.size() != nodeCount) {
-      throw std::invalid_argument(
+      throw InvalidConfiguration(
           "time_windows size is not equal to nodeCount");
     }
 
     for (const auto &tw : time_windows) {
       if (tw.empty()) {
-        throw std::invalid_argument("time_windows is empty");
+        throw InvalidConfiguration("time_windows is empty");
       }
       for (const auto &t : tw) {
         if (t.start < 0 || t.end < 0) {
-          throw std::invalid_argument("time_windows start or end is negative");
+          throw InvalidConfiguration("time_windows start or end is negative");
         }
         if (t.start > t.end) {
-          throw std::invalid_argument("time_windows start is greater than end");
+          throw InvalidConfiguration("time_windows start is greater than end");
         }
       }
     }
@@ -620,12 +628,12 @@ void RoutingBuilder::_validate() {
   if (_routing._with_service_time.has_value()) {
     const auto &service_time = _routing._with_service_time.value().service_time;
     if (service_time.size() != nodeCount) {
-      throw std::invalid_argument(
+      throw InvalidConfiguration(
           "service_time size is not equal to nodeCount");
     }
     for (const auto &st : service_time) {
       if (st < 0) {
-        throw std::invalid_argument("service_time is negative");
+        throw InvalidConfiguration("service_time is negative");
       }
     }
   }
@@ -634,21 +642,22 @@ void RoutingBuilder::_validate() {
     const auto penalties_var = _routing._with_drop_penalties.value().penalties;
     if (const auto *const penalty = std::get_if<int64_t>(&penalties_var);
         penalty) {
-      if (*penalty < 0) throw std::invalid_argument("penalty is negative");
+      if (*penalty < 0)
+        throw InvalidConfiguration("penalty is negative");
     } else if (const auto *const penalties =
                    std::get_if<std::vector<int64_t>>(&penalties_var);
                penalties) {
       if (penalties->size() != nodeCount) {
-        throw std::invalid_argument("penalties size is not equal to nodeCount");
+        throw InvalidConfiguration("penalties size is not equal to nodeCount");
       }
 
       for (const auto &penalty : *penalties) {
         if (penalty < 0) {
-          throw std::invalid_argument("penalties is negative");
+          throw InvalidConfiguration("penalties is negative");
         }
       }
     } else {
-      throw std::invalid_argument("penalties is not int64 or vector<int64>");
+      throw InvalidConfiguration("penalties is not int64 or vector<int64>");
     }
   }
 
@@ -656,30 +665,30 @@ void RoutingBuilder::_validate() {
     const auto &break_time =
         _routing._with_vehicle_break_time.value().break_time;
     if (break_time.size() != numVehicle) {
-      throw std::invalid_argument(
+      throw InvalidConfiguration(
           "break_time size is not equal to numVehicles");
     }
 
     for (const auto &bt : break_time) {
       if (bt.empty()) {
-        throw std::invalid_argument("break_time is empty");
+        throw InvalidConfiguration("break_time is empty");
       }
 
       for (const auto &t : bt) {
         if (t.start < 0 || t.end < 0) {
-          throw std::invalid_argument("break_time start or end is negative");
+          throw InvalidConfiguration("break_time start or end is negative");
         }
         if (t.start > t.end) {
-          throw std::invalid_argument("break_time start is greater than end");
+          throw InvalidConfiguration("break_time start is greater than end");
         }
       }
     }
   }
 };
 
-Routing RoutingBuilder::build() {
+Routing RoutingBuilder::build() const {
   _validate();
   return _routing;
 }
 
-}  // namespace OrtoolsLib
+} // namespace OrtoolsLib
